@@ -1,29 +1,57 @@
 const express = require('express')
 const mongoose = require('mongoose')
-
+const jwt = require('jsonwebtoken');
 const regStudent = require("./schema's/registerStudentSchema")
 const regFaculty = require("./schema's/registerFacultySchema")
+const cors = require('cors')
+const path = require('path')
+
+
 require('dotenv').config()
-var bodyParser = require('body-parser')
+var bodyParser = require('body-parser');
+const multer = require('multer');
+const entireBookSchema = require('./schema\'s/entireBookSchema');
+const singleBookSchema = require("./schema's/individualBookSchema")
 const app = express()
 const port = process.env.PORT || 4000;
+app.use(cors())
+app.use(express.json());
+
 
 mongoose.connect(`mongodb+srv://ravilms:ravi%402020@cluster0.v1isd.mongodb.net/LMSDATA?retryWrites=true&w=majority`).then(() => console.log("database Connected")).catch((err) => console.log(err, "connection error"))
 app.use(bodyParser.json());
 
 
-app.post("/loginStudent", async(req, res) => {
-    console.log(req.body)
-    const { regNo, password } = req.body;
 
-    if (regNo != undefined & password != undefined) {
-        const studentSearch = await regStudent.find({ studentRegistrationNo: regNo, studentPassword: password })
-        console.log(studentSearch)
+const storage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        cb(null, "upload")
+    },
+    filename: function(req, file, cb) {
+
+        cb(null, Date.now() + "-")
+    }
+})
+
+app.post("/loginStudent", async(req, res) => {
+    console.log(req.body, "req")
+    const { id, password } = req.body;
+
+    if (id != undefined & password != undefined) {
+        const studentSearch = await regStudent.find({ studentRegistrationNo: id, studentPassword: password })
+        console.log(studentSearch, "reslt")
         if (studentSearch.length == 0) {
             res.send("Either registration Number or password is wrong")
 
         } else {
-            res.send("login successful")
+            let jwtSecretKey = process.env.JWT_SECRET_KEY;
+            let data = {
+                time: Date(),
+                userId: 12,
+            }
+            const token = jwt.sign(data, jwtSecretKey);
+            console.log(token, "token")
+            res.send({ message: "Student login successful", token: token, studentDetail: studentSearch, type: "student" })
         }
     } else {
         res.send("please fill all feild")
@@ -35,23 +63,53 @@ app.post("/loginStudent", async(req, res) => {
 app.post("/loginFaculty", async(req, res) => {
 
     console.log(req.body)
-    const { regNo, password } = req.body;
+    const { id, password } = req.body;
 
-    if (regNo != undefined & password != undefined) {
-        const facultySearch = await regFaculty.find({ facultyRegistrationNo: regNo, facultyPassword: password })
+
+    if (id != undefined && password != undefined) {
+        const facultySearch = await regFaculty.find({ facultyRegistrationNo: id, facultyPassword: password })
         console.log(facultySearch)
         if (facultySearch.length == 0) {
             res.send("Either registration Number or password is wrong")
 
         } else {
-            res.send("login successful")
+            let jwtSecretKey = process.env.JWT_SECRET_KEY;
+            let data = {
+                time: Date(),
+                userId: 12,
+            }
+            const token = jwt.sign(data, jwtSecretKey);
+            res.send({ message: "Faculty login successful", token: token, facultyDetail: facultySearch, type: "faculty" })
         }
     } else {
         res.send("please fill all feild")
     }
 })
 
+app.post('/upload', (req, res) => {
+    let new1 = Date.now() + "-"
+    console.log(new1)
+    console.log(req.file, "inside /upload")
+    try {
+        let upload = multer({ storage: storage }).single("avatar")
 
+        upload(req, res, function(err) {
+            if (!req.file) {
+                return res.send("please select and image to upload")
+            } else if (err instanceof multer.MulterError) {
+                return res.send(err)
+            } else if (err) {
+                return res.send(err)
+            }
+        })
+        return res.status(201).json({ status: "sussess", message: "File receive successfully" })
+    } catch {
+
+    }
+
+
+})
+console.log(__dirname)
 
 app.post("/registerFaculty", async(req, res) => {
 
@@ -80,15 +138,15 @@ app.post("/registerFaculty", async(req, res) => {
 
 app.post("/registerStudent", async(req, res) => {
 
-    const { name, rollno, regNo, className, phonenumber, password, age, address } = req.body
-    console.log(name, rollno, regNo, className, phonenumber, password, age, address)
+    const { stuName, rollno, regNo, className, phonenumber, password, age, address } = req.body
+    console.log(stuName, rollno, regNo, className, phonenumber, password, age, address)
 
 
-    if (name != undefined & rollno != undefined & regNo != undefined & className != undefined & phonenumber != undefined & password != undefined & age != undefined & address != undefined) {
+    if (stuName != undefined & rollno != undefined & regNo != undefined & className != undefined & phonenumber != undefined & password != undefined & age != undefined & address != undefined) {
         const studentSearchResponse = await regStudent.find({ studentRegistrationNo: regNo })
         console.log(studentSearchResponse)
         if (studentSearchResponse.length == 0) {
-            const student = new regStudent({ studentName: name, studentRegistrationNo: regNo, studentRollNo: rollno, studentClass: className, studentPhoneNumber: phonenumber, studentPassword: password, studentAge: age, studentAddress: address });
+            const student = new regStudent({ studentName: stuName, studentRegistrationNo: regNo, studentRollNo: rollno, studentClass: className, studentPhoneNumber: phonenumber, studentPassword: password, studentAge: age, studentAddress: address });
             student.save()
             res.send("student saved successfully")
         } else {
